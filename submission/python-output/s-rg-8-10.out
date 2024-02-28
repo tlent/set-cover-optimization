@@ -1,0 +1,6 @@
+Found minimum set cover containing 4 sets in 0.000313 seconds.
+Included sets: [2, 4, 5, 8]
+Set #2: [2, 3]
+Set #4: [1, 3, 4]
+Set #5: [5, 6, 7]
+Set #8: [5, 8]
