@@ -1,7 +1,9 @@
 use anyhow::Result;
-use std::collections::HashSet;
+use bitvec::prelude::*;
+use bitvec::vec::BitVec;
 use std::fs::File;
 use std::io::prelude::*;
+use std::num::ParseIntError;
 use std::time::Instant;
 
 fn main() -> Result<()> {
@@ -10,59 +12,60 @@ fn main() -> Result<()> {
     let mut content = String::new();
     file.read_to_string(&mut content)?;
     let mut lines = content.lines();
-    let element_count: u32 = lines.next().expect("Invalid file content").parse()?;
+    let element_count: usize = lines.next().expect("Invalid file content").parse()?;
     let set_count: usize = lines.next().expect("Invalid file content").parse()?;
-    let elements: HashSet<u32> = (1..=element_count).collect();
-    let sets: Vec<(usize, HashSet<u32>)> = (1..)
+    let elements = bitvec!(usize, Lsb0; 1; element_count);
+    let sets: Vec<(usize, BitVec<usize>)> = (1..)
         .zip(lines)
         .map(|(i, line)| {
-            line.split_ascii_whitespace()
-                .map(|word| word.parse())
-                .collect::<Result<_, _>>()
-                .map(|set| (i, set))
+            let mut set = bitvec!(usize, Lsb0; 0; element_count);
+            for s in line.split_ascii_whitespace() {
+                let element: usize = s.parse()?;
+                set.set(element - 1, true);
+            }
+            Ok((i, set))
         })
-        .collect::<Result<_, _>>()?;
+        .collect::<Result<_, ParseIntError>>()?;
     assert_eq!(set_count, sets.len());
     let start = Instant::now();
-    let set_cover = find_set_cover(sets.clone(), elements).expect("Failed to find valid set cover");
+    let mut set_cover =
+        find_set_cover(sets.clone(), elements).expect("Failed to find valid set cover");
     let end = start.elapsed();
     println!(
         "Found minimum set cover containing {} sets in {:.6} seconds.",
         set_cover.len(),
         end.as_secs_f64()
     );
-    let mut sorted_set_cover: Vec<_> = set_cover.into_iter().collect();
-    sorted_set_cover.sort_unstable();
-    println!("Included sets: {:?}", sorted_set_cover);
-    for i in sorted_set_cover {
-        let mut sorted_set_elements: Vec<_> = sets[i - 1].1.iter().collect();
-        sorted_set_elements.sort_unstable();
-        println!("Set #{i}: {:?}", sorted_set_elements);
+    set_cover.sort_unstable();
+    println!("Included sets: {:?}", set_cover);
+    for i in set_cover {
+        let set_elements: Vec<_> = sets[i - 1].1.iter_ones().map(|i| i + 1).collect();
+        println!("Set #{i}: {:?}", set_elements);
     }
     Ok(())
 }
 
 fn find_set_cover(
-    mut sets: Vec<(usize, HashSet<u32>)>,
-    mut uncovered_elements: HashSet<u32>,
-) -> Option<HashSet<usize>> {
-    if uncovered_elements.is_empty() {
-        return Some(HashSet::new());
+    mut sets: Vec<(usize, BitVec<usize>)>,
+    mut uncovered_elements: BitVec<usize>,
+) -> Option<Vec<usize>> {
+    if uncovered_elements.count_ones() == 0 {
+        return Some(Vec::new());
     }
     for (index, (i, set)) in sets.iter().enumerate() {
         for (j, other) in &sets {
-            if i != j && set.is_subset(other) {
+            if i != j && set.iter_ones().all(|i| other[i]) {
                 let mut sets = sets.to_owned();
                 sets.remove(index);
                 return find_set_cover(sets, uncovered_elements);
             }
         }
     }
-    for &element in &uncovered_elements {
+    for element in uncovered_elements.iter_ones() {
         let mut containing_set_count = 0;
         let mut containing_index = 0;
         for (index, (_, set)) in sets.iter().enumerate() {
-            if set.contains(&element) {
+            if set[element] {
                 containing_set_count += 1;
                 containing_index = index;
                 if containing_set_count > 1 {
@@ -76,22 +79,24 @@ fn find_set_cover(
             let mut new_sets = sets.to_owned();
             let (required_set_id, required_set) = new_sets.remove(containing_index);
             for (_, set) in new_sets.iter_mut() {
-                set.retain(|element| !required_set.contains(element));
+                for element in required_set.iter_ones() {
+                    set.set(element, false);
+                }
             }
             new_sets.retain(|(_, set)| !set.is_empty());
-            for element in &required_set {
-                uncovered_elements.remove(element);
+            for element in required_set.iter_ones() {
+                uncovered_elements.set(element, false);
             }
             let mut cover = find_set_cover(new_sets, uncovered_elements);
             if let Some(set) = cover.as_mut() {
-                set.insert(required_set_id);
+                set.push(required_set_id);
             }
             return cover;
         }
     }
     let mut largest_set_index = 0;
     for (index, (_, set)) in sets.iter().enumerate() {
-        if set.len() > sets[largest_set_index].1.len() {
+        if set.count_ones() > sets[largest_set_index].1.count_ones() {
             largest_set_index = index;
         }
     }
@@ -99,21 +104,23 @@ fn find_set_cover(
     let mut new_sets = sets.clone();
     let mut new_uncovered_elements = uncovered_elements.clone();
     for (_, set) in new_sets.iter_mut() {
-        set.retain(|element| !selected_set.contains(element));
+        for element in selected_set.iter_ones() {
+            set.set(element, false);
+        }
     }
     new_sets.retain(|(_, set)| !set.is_empty());
-    for element in &selected_set {
-        new_uncovered_elements.remove(element);
+    for element in selected_set.iter_ones() {
+        new_uncovered_elements.set(element, false);
     }
     let mut with_selected = find_set_cover(new_sets, new_uncovered_elements);
     if let Some(set) = with_selected.as_mut() {
-        set.insert(selected_set_id);
+        set.push(selected_set_id);
     }
     let without_selected = find_set_cover(sets, uncovered_elements);
     match (with_selected, without_selected) {
         (None, None) => None,
         (None, without @ Some(_)) => without,
         (with @ Some(_), None) => with,
-        (Some(with), Some(without)) => Some(std::cmp::min_by_key(with, without, HashSet::len)),
+        (Some(with), Some(without)) => Some(std::cmp::min_by_key(with, without, Vec::len)),
     }
 }

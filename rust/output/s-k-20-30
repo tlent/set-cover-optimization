@@ -1,4 +1,4 @@
-Found minimum set cover containing 6 sets in 0.000076 seconds.
+Found minimum set cover containing 6 sets in 0.000069 seconds.
 Included sets: [2, 3, 5, 6, 10, 20]
 Set #2: [3, 7, 14, 18, 20]
 Set #3: [1, 2, 5, 9, 16]
