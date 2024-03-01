@@ -89,7 +89,13 @@ fn find_set_cover(
             return cover;
         }
     }
-    let (selected_set_id, selected_set) = sets.pop().unwrap();
+    let mut largest_set_index = 0;
+    for (index, (_, set)) in sets.iter().enumerate() {
+        if set.len() > sets[largest_set_index].1.len() {
+            largest_set_index = index;
+        }
+    }
+    let (selected_set_id, selected_set) = sets.remove(largest_set_index);
     let mut new_sets = sets.clone();
     let mut new_uncovered_elements = uncovered_elements.clone();
     for (_, set) in new_sets.iter_mut() {
