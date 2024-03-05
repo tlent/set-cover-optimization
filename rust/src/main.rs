@@ -133,22 +133,22 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
     if uncovered_elements.not_any() {
         return Some(Vec::new());
     }
-    let mut solution: Option<Vec<usize>> = None;
+    let mut best_sets: Option<Vec<usize>> = None;
     let set_count = sets.len();
     let mut stack = vec![(sets, uncovered_elements, Vec::with_capacity(set_count))];
     while let Some((mut sets, mut uncovered_elements, mut selected_sets)) = stack.pop() {
         if uncovered_elements.not_any() {
-            if let Some(solution_sets) = solution.as_ref() {
-                if selected_sets.len() < solution_sets.len() {
-                    solution = Some(selected_sets);
+            if let Some(best) = best_sets.as_ref() {
+                if selected_sets.len() < best.len() {
+                    best_sets = Some(selected_sets);
                 }
             } else {
-                solution = Some(selected_sets);
+                best_sets = Some(selected_sets);
             }
             continue;
         }
-        if let Some(solution_sets) = solution.as_ref() {
-            if selected_sets.len() + 1 >= solution_sets.len() {
+        if let Some(best) = best_sets.as_ref() {
+            if selected_sets.len() + 1 >= best.len() {
                 continue;
             }
         }
@@ -197,7 +197,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             }
         }
         if !required_sets.is_empty() {
-            if let Some(solution_sets) = solution.as_ref() {
+            if let Some(solution_sets) = best_sets.as_ref() {
                 if selected_sets.len() >= solution_sets.len() {
                     continue;
                 }
@@ -206,12 +206,12 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         }
         if sets.is_empty() {
             if uncovered_elements.not_any() {
-                if let Some(solution_sets) = solution.as_ref() {
-                    if selected_sets.len() < solution_sets.len() {
-                        solution = Some(selected_sets);
+                if let Some(best) = best_sets.as_ref() {
+                    if selected_sets.len() < best.len() {
+                        best_sets = Some(selected_sets);
                     }
                 } else {
-                    solution = Some(selected_sets);
+                    best_sets = Some(selected_sets);
                 }
             }
             continue;
@@ -237,7 +237,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         stack.push((new_sets, new_uncovered_elements, new_selected_sets));
         stack.push((sets, uncovered_elements, selected_sets));
     }
-    solution
+    best_sets
 }
 
 fn format_runtime(runtime: f64) -> String {
