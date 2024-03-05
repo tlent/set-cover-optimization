@@ -134,7 +134,8 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         return Some(Vec::new());
     }
     let mut solution: Option<Vec<usize>> = None;
-    let mut stack = vec![(sets, uncovered_elements, vec![])];
+    let set_count = sets.len();
+    let mut stack = vec![(sets, uncovered_elements, Vec::with_capacity(set_count))];
     while let Some((mut sets, mut uncovered_elements, mut selected_sets)) = stack.pop() {
         if uncovered_elements.not_any() {
             if let Some(solution_sets) = solution.as_ref() {
@@ -151,7 +152,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
                 continue;
             }
         }
-        let mut dominated_sets = vec![];
+        let mut dominated_sets = Vec::with_capacity(sets.len());
         for (index, set) in sets.iter().enumerate() {
             for other in sets.iter() {
                 if set.id != other.id && set.elements.iter_ones().all(|i| other.elements[i]) {
@@ -221,7 +222,8 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             .max_by_key(|(_index, set)| set.elements.count_ones())
             .unwrap();
         let selected_set = sets.remove(largest_set_index);
-        let mut new_selected_sets = selected_sets.clone();
+        let mut new_selected_sets = Vec::with_capacity(set_count);
+        new_selected_sets.extend(&selected_sets);
         new_selected_sets.push(selected_set.id);
         let mut new_sets = sets.clone();
         let mut new_uncovered_elements = uncovered_elements.clone();
