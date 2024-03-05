@@ -1,4 +1,4 @@
-Found minimum set cover containing 9 sets in 0.079238 seconds.
+Found minimum set cover containing 9 sets in 78.21 ms.
 Included sets: [1, 3, 8, 13, 20, 21, 29, 31, 34]
 Set #1: [2, 4, 6, 14, 15, 37]
 Set #3: [17, 24, 26, 27, 31, 39]
