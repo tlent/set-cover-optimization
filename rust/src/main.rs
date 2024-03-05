@@ -38,6 +38,8 @@ const TESTCASES: [&str; 24] = [
 fn main() -> Result<()> {
     let testcases_path = Path::new("../testcases");
     let output_path = Path::new("output");
+    let mut total_rust_runtime = 0.0;
+    let mut total_c_runtime = 0.0;
     let mut output_summary = File::create(output_path.join("summary").with_extension("md"))?;
     writeln!(
         &mut output_summary,
@@ -45,16 +47,16 @@ fn main() -> Result<()> {
          |------------------|-------------|--------------|----------|"
     )?;
     for &testcase in &TESTCASES {
-        let testcase_path = testcases_path.join(testcase).with_extension("txt");
-        let (rust_runtime, rust_output) = run_testcase(&testcase_path)?;
-        let mut output_file = File::create(output_path.join(testcase).with_extension("txt"))?;
-        output_file.write_all(rust_output.as_bytes())?;
         let c_path = PathBuf::from("../c/output")
             .join(testcase)
             .with_extension("txt");
         let c_output = fs::read_to_string(c_path)?;
         let line = c_output.lines().next().unwrap();
         let c_runtime: f64 = line.split_ascii_whitespace().nth(8).unwrap().parse()?;
+        let testcase_path = testcases_path.join(testcase).with_extension("txt");
+        let (rust_runtime, rust_output) = run_testcase(&testcase_path)?;
+        let mut output_file = File::create(output_path.join(testcase).with_extension("txt"))?;
+        output_file.write_all(rust_output.as_bytes())?;
         writeln!(
             &mut output_summary,
             "| {:^16} | {:>11} | {:>12} | {:>7.2}% |",
@@ -63,7 +65,17 @@ fn main() -> Result<()> {
             format_runtime(rust_runtime),
             ((rust_runtime - c_runtime) / c_runtime) * 100.0
         )?;
+        total_c_runtime += c_runtime;
+        total_rust_runtime += rust_runtime;
     }
+    writeln!(
+        &mut output_summary,
+        "| {:^16} | {:>11} | {:>12} | {:>7.2}% |",
+        "Total",
+        format_runtime(total_c_runtime),
+        format_runtime(total_rust_runtime),
+        ((total_rust_runtime - total_c_runtime) / total_c_runtime) * 100.0
+    )?;
     Ok(())
 }
 
