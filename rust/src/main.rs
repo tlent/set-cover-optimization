@@ -8,31 +8,31 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 const TESTCASES: [&str; 24] = [
-    "s-k-40-60",
-    "s-k-20-30",
-    "s-rg-197-45",
-    "s-k-20-35",
-    "s-rg-733-100",
-    "s-k-35-65",
-    "s-k-30-55",
-    "s-rg-413-75",
-    "s-rg-63-25",
-    "s-rg-31-15",
-    "s-rg-109-35",
-    "s-rg-245-50",
-    "s-k-30-50",
-    "s-k-100-175",
-    "s-k-150-225",
-    // "s-k-150-250",
-    "s-k-200-300",
     "s-rg-8-10",
-    "s-rg-40-20",
-    "s-k-50-100",
-    "s-k-40-80",
-    "s-rg-155-40",
     "s-X-12-6",
-    "s-k-50-95",
+    "s-k-20-30",
+    "s-k-30-50",
+    "s-rg-31-15",
+    "s-rg-40-20",
+    "s-k-40-60",
+    "s-k-20-35",
+    "s-rg-63-25",
+    "s-k-30-55",
     "s-rg-118-30",
+    "s-rg-109-35",
+    "s-k-35-65",
+    "s-rg-155-40",
+    "s-rg-197-45",
+    "s-rg-245-50",
+    "s-k-40-80",
+    "s-k-50-95",
+    "s-rg-413-75",
+    "s-k-150-225",
+    "s-k-50-100",
+    "s-rg-733-100",
+    "s-k-200-300",
+    "s-k-100-175",
+    // "s-k-150-250",
 ];
 
 #[derive(Debug, Clone)]
@@ -57,8 +57,12 @@ fn main() -> Result<()> {
             .join(testcase)
             .with_extension("txt");
         let c_output = fs::read_to_string(c_path)?;
-        let line = c_output.lines().next().unwrap();
-        let c_runtime: f64 = line.split_ascii_whitespace().nth(8).unwrap().parse()?;
+        let c_runtime: f64 = if c_output.to_lowercase().trim() == "did not finish" {
+            f64::INFINITY
+        } else {
+            let line = c_output.lines().next().unwrap();
+            line.split_ascii_whitespace().nth(8).unwrap().parse()?
+        };
         let testcase_path = testcases_path.join(testcase).with_extension("txt");
         let (rust_runtime, rust_output) = run_testcase(&testcase_path)?;
         let mut output_file = File::create(output_path.join(testcase).with_extension("txt"))?;
