@@ -129,99 +129,113 @@ fn run_testcase(path: &Path) -> Result<(f64, String)> {
     Ok((runtime, output))
 }
 
-fn find_set_cover(mut sets: Vec<Set>, mut uncovered_elements: BitVec<usize>) -> Option<Vec<usize>> {
+fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<Vec<usize>> {
     if uncovered_elements.not_any() {
         return Some(Vec::new());
     }
-    let mut dominated_sets = vec![];
-    for (index, set) in sets.iter().enumerate() {
-        for other in sets.iter() {
-            if set.id != other.id && set.elements.iter_ones().all(|i| other.elements[i]) {
-                dominated_sets.push(index);
-                break;
+    let mut solution: Option<Vec<usize>> = None;
+    let mut stack = vec![(sets, uncovered_elements, vec![])];
+    while let Some((mut sets, mut uncovered_elements, mut selected_sets)) = stack.pop() {
+        if uncovered_elements.not_any() {
+            if let Some(solution_sets) = solution.as_ref() {
+                if selected_sets.len() < solution_sets.len() {
+                    solution = Some(selected_sets);
+                }
+            } else {
+                solution = Some(selected_sets);
+            }
+            continue;
+        }
+        if let Some(solution_sets) = solution.as_ref() {
+            if selected_sets.len() + 1 >= solution_sets.len() {
+                continue;
             }
         }
-    }
-    for &index in dominated_sets.iter().rev() {
-        sets.remove(index);
-    }
-    dominated_sets.clear();
-    let mut required_sets = dominated_sets;
-    for element in uncovered_elements.iter_ones() {
-        let mut containing_set_count = 0;
-        let mut containing_index = 0;
+        let mut dominated_sets = vec![];
         for (index, set) in sets.iter().enumerate() {
-            if set.elements[element] {
-                containing_set_count += 1;
-                containing_index = index;
-                if containing_set_count > 1 {
+            for other in sets.iter() {
+                if set.id != other.id && set.elements.iter_ones().all(|i| other.elements[i]) {
+                    dominated_sets.push(index);
                     break;
                 }
             }
         }
-        if containing_set_count == 0 {
-            return None;
-        } else if containing_set_count == 1 {
-            required_sets.push(containing_index);
+        for &index in dominated_sets.iter().rev() {
+            sets.remove(index);
         }
-    }
-    required_sets.sort_unstable();
-    required_sets.dedup();
-    let mut required_set_ids = vec![];
-    for &index in required_sets.iter().rev() {
-        let required_set = sets.remove(index);
-        required_set_ids.push(required_set.id);
-        for element in required_set.elements.iter_ones() {
-            uncovered_elements.set(element, false);
-            for set in sets.iter_mut() {
+        dominated_sets.clear();
+        let mut required_sets = dominated_sets;
+        for element in uncovered_elements.iter_ones() {
+            let mut containing_set_count = 0;
+            let mut containing_index = 0;
+            for (index, set) in sets.iter().enumerate() {
+                if set.elements[element] {
+                    containing_set_count += 1;
+                    containing_index = index;
+                    if containing_set_count > 1 {
+                        break;
+                    }
+                }
+            }
+            if containing_set_count == 0 {
+                continue;
+            } else if containing_set_count == 1 {
+                required_sets.push(containing_index);
+            }
+        }
+        required_sets.sort_unstable();
+        required_sets.dedup();
+        for &index in required_sets.iter().rev() {
+            let required_set = sets.remove(index);
+            selected_sets.push(required_set.id);
+            for element in required_set.elements.iter_ones() {
+                uncovered_elements.set(element, false);
+                for set in sets.iter_mut() {
+                    set.elements.set(element, false);
+                }
+            }
+        }
+        if !required_sets.is_empty() {
+            if let Some(solution_sets) = solution.as_ref() {
+                if selected_sets.len() >= solution_sets.len() {
+                    continue;
+                }
+            }
+            sets.retain(|set| set.elements.any());
+        }
+        if sets.is_empty() {
+            if uncovered_elements.not_any() {
+                if let Some(solution_sets) = solution.as_ref() {
+                    if selected_sets.len() < solution_sets.len() {
+                        solution = Some(selected_sets);
+                    }
+                } else {
+                    solution = Some(selected_sets);
+                }
+            }
+            continue;
+        }
+        let (largest_set_index, _set) = sets
+            .iter()
+            .enumerate()
+            .max_by_key(|(_index, set)| set.elements.count_ones())
+            .unwrap();
+        let selected_set = sets.remove(largest_set_index);
+        let mut new_selected_sets = selected_sets.clone();
+        new_selected_sets.push(selected_set.id);
+        let mut new_sets = sets.clone();
+        let mut new_uncovered_elements = uncovered_elements.clone();
+        for element in selected_set.elements.iter_ones() {
+            new_uncovered_elements.set(element, false);
+            for set in new_sets.iter_mut() {
                 set.elements.set(element, false);
             }
         }
+        new_sets.retain(|set| set.elements.any());
+        stack.push((new_sets, new_uncovered_elements, new_selected_sets));
+        stack.push((sets, uncovered_elements, selected_sets));
     }
-    if !required_sets.is_empty() {
-        sets.retain(|set| set.elements.any());
-    }
-    if sets.is_empty() {
-        return if uncovered_elements.not_any() {
-            Some(required_set_ids)
-        } else {
-            None
-        };
-    }
-    let mut largest_set_index = 0;
-    let mut largest_set_size = 0;
-    for (index, set) in sets.iter().enumerate() {
-        let set_size = set.elements.count_ones();
-        if set_size > largest_set_size {
-            largest_set_index = index;
-            largest_set_size = set_size;
-        }
-    }
-    let selected_set = sets.remove(largest_set_index);
-    let mut new_sets = sets.clone();
-    let mut new_uncovered_elements = uncovered_elements.clone();
-    for element in selected_set.elements.iter_ones() {
-        new_uncovered_elements.set(element, false);
-        for set in new_sets.iter_mut() {
-            set.elements.set(element, false);
-        }
-    }
-    new_sets.retain(|set| set.elements.any());
-    let mut with_selected = find_set_cover(new_sets, new_uncovered_elements);
-    if let Some(list) = with_selected.as_mut() {
-        list.push(selected_set.id);
-        list.extend(&required_set_ids);
-    }
-    let mut without_selected = find_set_cover(sets, uncovered_elements);
-    if let Some(list) = without_selected.as_mut() {
-        list.extend(required_set_ids);
-    }
-    match (with_selected, without_selected) {
-        (None, None) => None,
-        (None, without @ Some(_)) => without,
-        (with @ Some(_), None) => with,
-        (Some(with), Some(without)) => Some(std::cmp::min_by_key(with, without, Vec::len)),
-    }
+    solution
 }
 
 fn format_runtime(runtime: f64) -> String {
