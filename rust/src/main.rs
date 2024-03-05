@@ -130,16 +130,20 @@ fn run_testcase(path: &Path) -> Result<(f64, String)> {
 }
 
 fn find_set_cover(mut sets: Vec<Set>, mut uncovered_elements: BitVec<usize>) -> Option<Vec<usize>> {
-    if uncovered_elements.count_ones() == 0 {
+    if uncovered_elements.not_any() {
         return Some(Vec::new());
     }
+    let mut dominated_sets = vec![];
     for (index, set) in sets.iter().enumerate() {
         for other in sets.iter() {
             if set.id != other.id && set.elements.iter_ones().all(|i| other.elements[i]) {
-                sets.remove(index);
-                return find_set_cover(sets, uncovered_elements);
+                dominated_sets.push(index);
+                break;
             }
         }
+    }
+    for &index in dominated_sets.iter().rev() {
+        sets.remove(index);
     }
     for element in uncovered_elements.iter_ones() {
         let mut containing_set_count = 0;
@@ -163,7 +167,7 @@ fn find_set_cover(mut sets: Vec<Set>, mut uncovered_elements: BitVec<usize>) -> 
                     set.elements.set(element, false);
                 }
             }
-            sets.retain(|set| !set.elements.is_empty());
+            sets.retain(|set| set.elements.any());
             let mut cover = find_set_cover(sets, uncovered_elements);
             if let Some(list) = cover.as_mut() {
                 list.push(required_set.id);
@@ -189,7 +193,7 @@ fn find_set_cover(mut sets: Vec<Set>, mut uncovered_elements: BitVec<usize>) -> 
             set.elements.set(element, false);
         }
     }
-    new_sets.retain(|set| !set.elements.is_empty());
+    new_sets.retain(|set| set.elements.any());
     let mut with_selected = find_set_cover(new_sets, new_uncovered_elements);
     if let Some(list) = with_selected.as_mut() {
         list.push(selected_set.id);
