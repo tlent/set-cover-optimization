@@ -139,6 +139,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
     }
     let mut best_sets: Option<Vec<usize>> = None;
     let set_count = sets.len();
+    let mut sets_vec = Vec::with_capacity(set_count);
     let mut stack = vec![(sets, uncovered_elements, Vec::with_capacity(set_count))];
     while let Some((mut sets, mut uncovered_elements, mut selected_sets)) = stack.pop() {
         if uncovered_elements.not_any() {
@@ -156,7 +157,8 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
                 continue;
             }
         }
-        let mut dominated_sets = Vec::with_capacity(sets.len());
+        let dominated_sets = &mut sets_vec;
+        dominated_sets.clear();
         for (index, set) in sets.iter().enumerate() {
             for other in sets.iter() {
                 if set.id != other.id
@@ -172,8 +174,8 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         for &index in dominated_sets.iter().rev() {
             sets.remove(index);
         }
-        dominated_sets.clear();
-        let mut required_sets = dominated_sets;
+        let required_sets = &mut sets_vec;
+        required_sets.clear();
         for element in uncovered_elements.iter_ones() {
             let mut containing_set_count = 0;
             let mut containing_index = 0;
