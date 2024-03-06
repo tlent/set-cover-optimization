@@ -201,9 +201,9 @@ fn read_testcase(name: &str) -> Result<(Vec<Set>, BitVec<usize>)> {
     let content = fs::read_to_string(Path::new(TESTCASES_PATH).join(name).with_extension("txt"))?;
     let mut lines = content.lines();
     let element_count: usize = lines.next().expect("Invalid file content").parse()?;
+    let set_count: usize = lines.next().expect("Invalid file content").parse()?;
     let elements = bitvec!(usize, Lsb0; 1; element_count);
     let sets: Vec<Set> = lines
-        .skip(1)
         .enumerate()
         .map(|(id, line)| {
             let mut elements = bitvec!(usize, Lsb0; 0; element_count);
@@ -214,5 +214,6 @@ fn read_testcase(name: &str) -> Result<(Vec<Set>, BitVec<usize>)> {
             Ok(Set { id, elements })
         })
         .collect::<Result<_, ParseIntError>>()?;
+    assert_eq!(set_count, sets.len());
     Ok((sets, elements))
 }
