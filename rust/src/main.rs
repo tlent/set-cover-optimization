@@ -159,7 +159,11 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         let mut dominated_sets = Vec::with_capacity(sets.len());
         for (index, set) in sets.iter().enumerate() {
             for other in sets.iter() {
-                if set.id != other.id && set.elements.iter_ones().all(|i| other.elements[i]) {
+                if set.id != other.id
+                    && set.elements.iter_ones().all(|i| other.elements[i])
+                    && (set.id < other.id
+                        || set.elements.count_ones() < other.elements.count_ones())
+                {
                     dominated_sets.push(index);
                     break;
                 }
