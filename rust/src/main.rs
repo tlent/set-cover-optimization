@@ -95,15 +95,6 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
     let mut sets_vec = Vec::with_capacity(set_count);
     let mut stack = vec![(sets, uncovered_elements, Vec::with_capacity(set_count))];
     while let Some((mut sets, mut uncovered_elements, mut chosen_sets)) = stack.pop() {
-        if uncovered_elements.not_any() {
-            if min_cover.is_none() || chosen_sets.len() < min_cover.as_ref().unwrap().len() {
-                min_cover = Some(chosen_sets);
-            }
-            continue;
-        }
-        if min_cover.is_some() && chosen_sets.len() + 1 >= min_cover.as_ref().unwrap().len() {
-            continue;
-        }
         let dominated_sets = &mut sets_vec;
         dominated_sets.clear();
         for (index, set) in sets.iter().enumerate() {
@@ -140,6 +131,12 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
                 required_sets.push(containing_index);
             }
         }
+        if !required_sets.is_empty()
+            && min_cover.is_some()
+            && chosen_sets.len() + required_sets.len() >= min_cover.as_ref().unwrap().len()
+        {
+            continue;
+        }
         required_sets.sort_unstable();
         required_sets.dedup();
         for &index in required_sets.iter().rev() {
@@ -151,9 +148,6 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             }
         }
         if !required_sets.is_empty() {
-            if min_cover.is_some() && chosen_sets.len() >= min_cover.as_ref().unwrap().len() {
-                continue;
-            }
             sets.retain(|set| set.elements.any());
         }
         if sets.is_empty() {
@@ -169,16 +163,25 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             .enumerate()
             .max_by_key(|(_index, set)| set.elements.count_ones())
             .unwrap();
-        let chosen_set = sets.swap_remove(largest_set_index);
+        let largest_set = sets.swap_remove(largest_set_index);
         stack.push((
             sets.clone(),
             uncovered_elements.clone(),
             clone_with_capacity(&chosen_sets, set_count),
         ));
-        chosen_sets.push(chosen_set.id);
-        assign_difference(&mut uncovered_elements, &chosen_set.elements);
+        chosen_sets.push(largest_set.id);
+        assign_difference(&mut uncovered_elements, &largest_set.elements);
+        if uncovered_elements.not_any() {
+            if min_cover.is_none() || chosen_sets.len() < min_cover.as_ref().unwrap().len() {
+                min_cover = Some(chosen_sets);
+            }
+            continue;
+        }
+        if min_cover.is_some() && chosen_sets.len() + 1 >= min_cover.as_ref().unwrap().len() {
+            continue;
+        }
         for set in sets.iter_mut() {
-            assign_difference(&mut set.elements, &chosen_set.elements);
+            assign_difference(&mut set.elements, &largest_set.elements);
         }
         sets.retain(|set| set.elements.any());
         stack.push((sets, uncovered_elements, chosen_sets));
