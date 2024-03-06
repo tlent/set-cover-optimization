@@ -107,11 +107,10 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         let dominated_sets = &mut sets_vec;
         dominated_sets.clear();
         for (index, set) in sets.iter().enumerate() {
-            for other in sets.iter() {
+            for (other_index, other) in sets.iter().enumerate() {
                 if set.id != other.id
-                    && set.elements.iter_ones().all(|i| other.elements[i])
-                    && (set.id < other.id
-                        || set.elements.count_ones() < other.elements.count_ones())
+                    && is_subset(&set.elements, &other.elements)
+                    && !dominated_sets.contains(&other_index)
                 {
                     dominated_sets.push(index);
                     break;
@@ -146,11 +145,9 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         for &index in required_sets.iter().rev() {
             let required_set = sets.swap_remove(index);
             chosen_sets.push(required_set.id);
-            for element in required_set.elements.iter_ones() {
-                uncovered_elements.set(element, false);
-                for set in sets.iter_mut() {
-                    set.elements.set(element, false);
-                }
+            assign_difference(&mut uncovered_elements, &required_set.elements);
+            for set in sets.iter_mut() {
+                assign_difference(&mut set.elements, &required_set.elements);
             }
         }
         if !required_sets.is_empty() {
@@ -179,16 +176,28 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             clone_with_capacity(&chosen_sets, set_count),
         ));
         chosen_sets.push(chosen_set.id);
-        for element in chosen_set.elements.iter_ones() {
-            uncovered_elements.set(element, false);
-            for set in sets.iter_mut() {
-                set.elements.set(element, false);
-            }
+        assign_difference(&mut uncovered_elements, &chosen_set.elements);
+        for set in sets.iter_mut() {
+            assign_difference(&mut set.elements, &chosen_set.elements);
         }
         sets.retain(|set| set.elements.any());
         stack.push((sets, uncovered_elements, chosen_sets));
     }
     min_cover
+}
+
+fn is_subset(set: &BitVec<usize>, other: &BitVec<usize>) -> bool {
+    set.as_raw_slice()
+        .iter()
+        .zip(other.as_raw_slice())
+        .all(|(&s, &o)| s & o == s)
+}
+
+fn assign_difference(set: &mut BitVec<usize>, other: &BitVec<usize>) {
+    let iter = set.as_raw_mut_slice().iter_mut().zip(other.as_raw_slice());
+    for (s, &o) in iter {
+        *s &= !o;
+    }
 }
 
 fn clone_with_capacity<T: Clone>(slice: &[T], capacity: usize) -> Vec<T> {
