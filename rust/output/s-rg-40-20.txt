@@ -1,4 +1,4 @@
-Found minimum set cover containing 10 sets in 22.17 us.
+Found minimum set cover containing 10 sets in 33.00 us.
 Included sets: [1, 6, 7, 8, 9, 11, 12, 13, 18, 19]
 Set #1: [1, 2, 3]
 Set #6: [4, 17, 18, 19, 20]

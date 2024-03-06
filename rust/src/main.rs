@@ -232,19 +232,21 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             .max_by_key(|(_index, set)| set.elements.count_ones())
             .unwrap();
         let selected_set = sets.remove(largest_set_index);
-        let mut new_selected_sets = Vec::with_capacity(set_count);
-        new_selected_sets.extend(&selected_sets);
-        new_selected_sets.push(selected_set.id);
-        let mut new_sets = sets.clone();
-        let mut new_uncovered_elements = uncovered_elements.clone();
+        let mut selected_sets_clone = Vec::with_capacity(set_count);
+        selected_sets_clone.extend(&selected_sets);
+        stack.push((
+            sets.clone(),
+            uncovered_elements.clone(),
+            selected_sets_clone,
+        ));
+        selected_sets.push(selected_set.id);
         for element in selected_set.elements.iter_ones() {
-            new_uncovered_elements.set(element, false);
-            for set in new_sets.iter_mut() {
+            uncovered_elements.set(element, false);
+            for set in sets.iter_mut() {
                 set.elements.set(element, false);
             }
         }
-        new_sets.retain(|set| set.elements.any());
-        stack.push((new_sets, new_uncovered_elements, new_selected_sets));
+        sets.retain(|set| set.elements.any());
         stack.push((sets, uncovered_elements, selected_sets));
     }
     best_sets
