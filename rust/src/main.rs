@@ -74,7 +74,7 @@ fn main() -> Result<()> {
             set_indices,
         };
         total_runtime += runtime;
-        println!("{:?}", &output);
+        println!("{} {} {}", output.name, output.set_count, output.runtime);
     }
     println!("Completed in {total_runtime} s");
     let output = Output {
