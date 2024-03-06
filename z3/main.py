@@ -1,6 +1,6 @@
 import z3
 import time
-import os
+import json
 
 testcases = [
     "s-rg-8-10",
@@ -30,15 +30,15 @@ testcases = [
     "s-k-150-250",
 ]
 
-os.makedirs("output", exist_ok=True)
+total_runtime = 0
+testcase_outputs = []
 for testcase in testcases:
-    print(testcase)
     with open(f"../testcases/{testcase}.txt", "r") as file:
         element_count = int(file.readline())
         set_count = int(file.readline())
-        universe = set(range(1, element_count + 1))
+        universe = set(range(element_count))
         sets = [
-            {int(element) for element in file.readline().split()}
+            {int(element) - 1 for element in file.readline().split()}
             for _ in range(set_count)
         ]
     context = z3.Context()
@@ -52,17 +52,22 @@ for testcase in testcases:
     end = time.time()
     if result == z3.sat:
         model = optimize.model()
-        set_cover = [(i, s) for (i, s) in enumerate(sets) if model[chosen_sets[i]]]
-        output = []
-        output.append(
-            f"Found minimum set cover containing {len(set_cover)} sets in {end - start:.3g} seconds."
-        )
-        output.append(f"Included sets: {[i + 1 for i, _ in set_cover]}")
-        for i, s in set_cover:
-            output.append(f"Set #{i + 1}: {sorted(list(s))}")
-        s = "\n".join(output)
-        print(s)
-        with open(f"output/{testcase}.txt", "w") as file:
-            file.write(s)
+        runtime = end - start
+        total_runtime += runtime
+        set_indices = [i for i, _ in enumerate(sets) if model[chosen_sets[i]]]
+        set_count = len(set_indices)
+        output = {
+            "name": testcase,
+            "runtime": runtime,
+            "set_count": set_count,
+            "set_indices": set_indices,
+        }
+        testcase_outputs.append(output)
+        print(f"{testcase} {set_count} {runtime}")
     else:
-        print("No solution found.")
+        print(f"{testcase}: No solution found.")
+        exit(1)
+print(f"Completed in {total_runtime} s")
+output = {"total_runtime": total_runtime, "testcase_outputs": testcase_outputs}
+with open("output.json", "w") as file:
+    json.dump(output, file)
