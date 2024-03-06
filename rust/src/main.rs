@@ -1,13 +1,15 @@
 use anyhow::Result;
 use bitvec::prelude::*;
 use bitvec::vec::BitVec;
+use serde::Serialize;
 use std::fs::{self, File};
-use std::io::prelude::*;
 use std::num::ParseIntError;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
-const TESTCASES: [&str; 24] = [
+const TESTCASES_PATH: &str = "../testcases";
+const TESTCASE_COUNT: usize = 24;
+const TESTCASES: [&str; TESTCASE_COUNT] = [
     "s-rg-8-10",
     "s-X-12-6",
     "s-k-20-30",
@@ -41,96 +43,47 @@ struct Set {
     elements: BitVec<usize>,
 }
 
-fn main() -> Result<()> {
-    let testcases_path = Path::new("../testcases");
-    let output_path = Path::new("output");
-    let mut total_rust_runtime = 0.0;
-    let mut total_c_runtime = 0.0;
-    let mut output_summary = File::create(output_path.join("summary").with_extension("md"))?;
-    writeln!(
-        &mut output_summary,
-        "|     Testcase     |  C Runtime  | Rust Runtime |  Change  |\n\
-         |------------------|-------------|--------------|----------|"
-    )?;
-    for &testcase in &TESTCASES {
-        let c_path = PathBuf::from("../c/output")
-            .join(testcase)
-            .with_extension("txt");
-        let c_output = fs::read_to_string(c_path)?;
-        let c_runtime: f64 = if c_output.to_lowercase().trim() == "did not finish" {
-            f64::INFINITY
-        } else {
-            let line = c_output.lines().next().unwrap();
-            line.split_ascii_whitespace().nth(8).unwrap().parse()?
-        };
-        let testcase_path = testcases_path.join(testcase).with_extension("txt");
-        let (rust_runtime, rust_output) = run_testcase(&testcase_path)?;
-        let mut output_file = File::create(output_path.join(testcase).with_extension("txt"))?;
-        output_file.write_all(rust_output.as_bytes())?;
-        writeln!(
-            &mut output_summary,
-            "| {:^16} | {:>11} | {:>12} | {:>7.2}% |",
-            testcase,
-            format_runtime(c_runtime),
-            format_runtime(rust_runtime),
-            ((rust_runtime - c_runtime) / c_runtime) * 100.0
-        )?;
-        total_c_runtime += c_runtime;
-        total_rust_runtime += rust_runtime;
-    }
-    writeln!(
-        &mut output_summary,
-        "| {:^16} | {:>11} | {:>12} | {:>7.2}% |",
-        "Total",
-        format_runtime(total_c_runtime),
-        format_runtime(total_rust_runtime),
-        ((total_rust_runtime - total_c_runtime) / total_c_runtime) * 100.0
-    )?;
-    Ok(())
+#[derive(Debug, Default, Serialize)]
+struct TestCaseOutput {
+    name: &'static str,
+    runtime: f64,
+    set_count: usize,
+    set_indices: Vec<usize>,
 }
 
-fn run_testcase(path: &Path) -> Result<(f64, String)> {
-    let testcase_name = path.file_name().unwrap().to_string_lossy();
-    println!("Running testcase {testcase_name}");
-    let mut file = File::open(path)?;
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    let mut lines = content.lines();
-    let element_count: usize = lines.next().expect("Invalid file content").parse()?;
-    let set_count: usize = lines.next().expect("Invalid file content").parse()?;
-    let elements = bitvec!(usize, Lsb0; 1; element_count);
-    let sets: Vec<Set> = lines
-        .enumerate()
-        .map(|(id, line)| {
-            let mut elements = bitvec!(usize, Lsb0; 0; element_count);
-            for s in line.split_ascii_whitespace() {
-                let element: usize = s.parse()?;
-                elements.set(element - 1, true);
-            }
-            Ok(Set { id, elements })
-        })
-        .collect::<Result<_, ParseIntError>>()?;
-    assert_eq!(set_count, sets.len());
-    let sets_clone = sets.clone();
-    let start = Instant::now();
-    let mut set_cover =
-        find_set_cover(sets_clone, elements).expect("Failed to find valid set cover");
-    let runtime = start.elapsed().as_secs_f64();
-    set_cover.sort_unstable();
-    let mut output = format!(
-        "Found minimum set cover containing {} sets in {}.\n\
-        Included sets: {:?}\n",
-        set_cover.len(),
-        format_runtime(runtime),
-        set_cover.iter().map(|i| i + 1).collect::<Vec<_>>()
-    );
-    for i in set_cover {
-        let set_elements: Vec<_> = sets[i].elements.iter_ones().map(|i| i + 1).collect();
-        let set_number = i + 1;
-        output.push_str(&format!("Set #{set_number}: {:?}\n", set_elements));
+#[derive(Debug, Serialize)]
+struct Output {
+    total_runtime: f64,
+    testcase_outputs: [TestCaseOutput; TESTCASE_COUNT],
+}
+
+fn main() -> Result<()> {
+    let mut testcase_outputs: [TestCaseOutput; TESTCASE_COUNT] = Default::default();
+    let mut total_runtime = 0.0;
+    for (&name, output) in TESTCASES.iter().zip(testcase_outputs.iter_mut()) {
+        let (sets, elements) = read_testcase(name)?;
+        let start = Instant::now();
+        let mut set_indices =
+            find_set_cover(sets, elements).expect("Failed to find valid set cover");
+        let runtime = start.elapsed().as_secs_f64();
+        set_indices.sort_unstable();
+        *output = TestCaseOutput {
+            name,
+            runtime,
+            set_count: set_indices.len(),
+            set_indices,
+        };
+        total_runtime += runtime;
+        println!("{:?}", &output);
     }
-    println!("{}", output);
-    Ok((runtime, output))
+    println!("Completed in {total_runtime}s");
+    let output = Output {
+        total_runtime,
+        testcase_outputs,
+    };
+    let output_file = File::create("output.json")?;
+    serde_json::to_writer(output_file, &output)?;
+    Ok(())
 }
 
 fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<Vec<usize>> {
@@ -252,12 +205,22 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
     best_sets
 }
 
-fn format_runtime(runtime: f64) -> String {
-    if runtime < 1e-3 {
-        format!("{:.2} us", runtime * 1e6)
-    } else if runtime < 1.0 {
-        format!("{:.2} ms", runtime * 1e3)
-    } else {
-        format!("{:.2} s", runtime)
-    }
+fn read_testcase(name: &str) -> Result<(Vec<Set>, BitVec<usize>)> {
+    let content = fs::read_to_string(Path::new(TESTCASES_PATH).join(name).with_extension("txt"))?;
+    let mut lines = content.lines();
+    let element_count: usize = lines.next().expect("Invalid file content").parse()?;
+    let elements = bitvec!(usize, Lsb0; 1; element_count);
+    let sets: Vec<Set> = lines
+        .skip(1)
+        .enumerate()
+        .map(|(id, line)| {
+            let mut elements = bitvec!(usize, Lsb0; 0; element_count);
+            for s in line.split_ascii_whitespace() {
+                let element: usize = s.parse()?;
+                elements.set(element - 1, true);
+            }
+            Ok(Set { id, elements })
+        })
+        .collect::<Result<_, ParseIntError>>()?;
+    Ok((sets, elements))
 }
