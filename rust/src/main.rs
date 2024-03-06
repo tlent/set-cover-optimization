@@ -76,7 +76,7 @@ fn main() -> Result<()> {
         total_runtime += runtime;
         println!("{:?}", &output);
     }
-    println!("Completed in {total_runtime}s");
+    println!("Completed in {total_runtime} s");
     let output = Output {
         total_runtime,
         testcase_outputs,
@@ -90,25 +90,19 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
     if uncovered_elements.not_any() {
         return Some(Vec::new());
     }
-    let mut best_sets: Option<Vec<usize>> = None;
     let set_count = sets.len();
+    let mut min_cover: Option<Vec<usize>> = None;
     let mut sets_vec = Vec::with_capacity(set_count);
     let mut stack = vec![(sets, uncovered_elements, Vec::with_capacity(set_count))];
-    while let Some((mut sets, mut uncovered_elements, mut selected_sets)) = stack.pop() {
+    while let Some((mut sets, mut uncovered_elements, mut chosen_sets)) = stack.pop() {
         if uncovered_elements.not_any() {
-            if let Some(best) = best_sets.as_ref() {
-                if selected_sets.len() < best.len() {
-                    best_sets = Some(selected_sets);
-                }
-            } else {
-                best_sets = Some(selected_sets);
+            if min_cover.is_none() || chosen_sets.len() < min_cover.as_ref().unwrap().len() {
+                min_cover = Some(chosen_sets);
             }
             continue;
         }
-        if let Some(best) = best_sets.as_ref() {
-            if selected_sets.len() + 1 >= best.len() {
-                continue;
-            }
+        if min_cover.is_some() && chosen_sets.len() + 1 >= min_cover.as_ref().unwrap().len() {
+            continue;
         }
         let dominated_sets = &mut sets_vec;
         dominated_sets.clear();
@@ -151,7 +145,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         required_sets.dedup();
         for &index in required_sets.iter().rev() {
             let required_set = sets.remove(index);
-            selected_sets.push(required_set.id);
+            chosen_sets.push(required_set.id);
             for element in required_set.elements.iter_ones() {
                 uncovered_elements.set(element, false);
                 for set in sets.iter_mut() {
@@ -160,22 +154,16 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             }
         }
         if !required_sets.is_empty() {
-            if let Some(solution_sets) = best_sets.as_ref() {
-                if selected_sets.len() >= solution_sets.len() {
-                    continue;
-                }
+            if min_cover.is_some() && chosen_sets.len() >= min_cover.as_ref().unwrap().len() {
+                continue;
             }
             sets.retain(|set| set.elements.any());
         }
         if sets.is_empty() {
-            if uncovered_elements.not_any() {
-                if let Some(best) = best_sets.as_ref() {
-                    if selected_sets.len() < best.len() {
-                        best_sets = Some(selected_sets);
-                    }
-                } else {
-                    best_sets = Some(selected_sets);
-                }
+            if uncovered_elements.not_any()
+                && (min_cover.is_none() || chosen_sets.len() < min_cover.as_ref().unwrap().len())
+            {
+                min_cover = Some(chosen_sets);
             }
             continue;
         }
@@ -184,25 +172,29 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             .enumerate()
             .max_by_key(|(_index, set)| set.elements.count_ones())
             .unwrap();
-        let selected_set = sets.remove(largest_set_index);
-        let mut selected_sets_clone = Vec::with_capacity(set_count);
-        selected_sets_clone.extend(&selected_sets);
+        let chosen_set = sets.remove(largest_set_index);
         stack.push((
             sets.clone(),
             uncovered_elements.clone(),
-            selected_sets_clone,
+            clone_with_capacity(&chosen_sets, set_count),
         ));
-        selected_sets.push(selected_set.id);
-        for element in selected_set.elements.iter_ones() {
+        chosen_sets.push(chosen_set.id);
+        for element in chosen_set.elements.iter_ones() {
             uncovered_elements.set(element, false);
             for set in sets.iter_mut() {
                 set.elements.set(element, false);
             }
         }
         sets.retain(|set| set.elements.any());
-        stack.push((sets, uncovered_elements, selected_sets));
+        stack.push((sets, uncovered_elements, chosen_sets));
     }
-    best_sets
+    min_cover
+}
+
+fn clone_with_capacity<T: Clone>(slice: &[T], capacity: usize) -> Vec<T> {
+    let mut clone = Vec::with_capacity(capacity);
+    clone.extend_from_slice(slice);
+    clone
 }
 
 fn read_testcase(name: &str) -> Result<(Vec<Set>, BitVec<usize>)> {
