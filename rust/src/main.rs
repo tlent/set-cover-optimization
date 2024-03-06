@@ -119,7 +119,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             }
         }
         for &index in dominated_sets.iter().rev() {
-            sets.remove(index);
+            sets.swap_remove(index);
         }
         let required_sets = &mut sets_vec;
         required_sets.clear();
@@ -144,7 +144,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         required_sets.sort_unstable();
         required_sets.dedup();
         for &index in required_sets.iter().rev() {
-            let required_set = sets.remove(index);
+            let required_set = sets.swap_remove(index);
             chosen_sets.push(required_set.id);
             for element in required_set.elements.iter_ones() {
                 uncovered_elements.set(element, false);
@@ -172,7 +172,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             .enumerate()
             .max_by_key(|(_index, set)| set.elements.count_ones())
             .unwrap();
-        let chosen_set = sets.remove(largest_set_index);
+        let chosen_set = sets.swap_remove(largest_set_index);
         stack.push((
             sets.clone(),
             uncovered_elements.clone(),
