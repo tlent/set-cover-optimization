@@ -131,14 +131,14 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
                 required_sets.push(containing_index);
             }
         }
+        required_sets.sort_unstable();
+        required_sets.dedup();
         if !required_sets.is_empty()
             && min_cover.is_some()
             && chosen_sets.len() + required_sets.len() >= min_cover.as_ref().unwrap().len()
         {
             continue;
         }
-        required_sets.sort_unstable();
-        required_sets.dedup();
         for &index in required_sets.iter().rev() {
             let required_set = sets.swap_remove(index);
             chosen_sets.push(required_set.id);
