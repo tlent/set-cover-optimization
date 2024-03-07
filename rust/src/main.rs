@@ -57,6 +57,13 @@ struct Output {
     testcase_outputs: [TestCaseOutput; TESTCASE_COUNT],
 }
 
+#[derive(Debug)]
+struct State {
+    sets: Vec<Set>,
+    uncovered_elements: BitVec<usize>,
+    chosen_sets: Vec<usize>,
+}
+
 fn main() -> Result<()> {
     let mut testcase_outputs: [TestCaseOutput; TESTCASE_COUNT] = Default::default();
     let mut total_runtime = 0.0;
@@ -93,12 +100,17 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
     let set_count = sets.len();
     let mut min_cover: Option<Vec<usize>> = None;
     let mut sets_vec = Vec::with_capacity(set_count);
-    let mut stack = vec![(sets, uncovered_elements, Vec::with_capacity(set_count))];
-    while let Some((mut sets, mut uncovered_elements, mut chosen_sets)) = stack.pop() {
+    let initial_state = State {
+        sets,
+        uncovered_elements,
+        chosen_sets: Vec::with_capacity(set_count),
+    };
+    let mut stack = vec![initial_state];
+    while let Some(mut state) = stack.pop() {
         let dominated_sets = &mut sets_vec;
         dominated_sets.clear();
-        for (index, set) in sets.iter().enumerate() {
-            for (other_index, other) in sets.iter().enumerate() {
+        for (index, set) in state.sets.iter().enumerate() {
+            for (other_index, other) in state.sets.iter().enumerate() {
                 if set.id != other.id
                     && is_subset(&set.elements, &other.elements)
                     && !dominated_sets.contains(&other_index)
@@ -109,14 +121,14 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             }
         }
         for &index in dominated_sets.iter().rev() {
-            sets.swap_remove(index);
+            state.sets.swap_remove(index);
         }
         let required_sets = &mut sets_vec;
         required_sets.clear();
-        for element in uncovered_elements.iter_ones() {
+        for element in state.uncovered_elements.iter_ones() {
             let mut containing_set_count = 0;
             let mut containing_index = 0;
-            for (index, set) in sets.iter().enumerate() {
+            for (index, set) in state.sets.iter().enumerate() {
                 if set.elements[element] {
                     containing_set_count += 1;
                     containing_index = index;
@@ -135,56 +147,54 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         required_sets.dedup();
         if !required_sets.is_empty()
             && min_cover.is_some()
-            && chosen_sets.len() + required_sets.len() >= min_cover.as_ref().unwrap().len()
+            && state.chosen_sets.len() + required_sets.len() >= min_cover.as_ref().unwrap().len()
         {
             continue;
         }
         for &index in required_sets.iter().rev() {
-            let required_set = sets.swap_remove(index);
-            chosen_sets.push(required_set.id);
-            assign_difference(&mut uncovered_elements, &required_set.elements);
-            for set in sets.iter_mut() {
+            let required_set = state.sets.swap_remove(index);
+            state.chosen_sets.push(required_set.id);
+            assign_difference(&mut state.uncovered_elements, &required_set.elements);
+            for set in state.sets.iter_mut() {
                 assign_difference(&mut set.elements, &required_set.elements);
             }
         }
         if !required_sets.is_empty() {
-            sets.retain(|set| set.elements.any());
+            state.sets.retain(|set| set.elements.any());
         }
-        if sets.is_empty() {
-            if uncovered_elements.not_any()
-                && (min_cover.is_none() || chosen_sets.len() < min_cover.as_ref().unwrap().len())
+        if state.sets.is_empty() {
+            if state.uncovered_elements.not_any()
+                && (min_cover.is_none()
+                    || state.chosen_sets.len() < min_cover.as_ref().unwrap().len())
             {
-                min_cover = Some(chosen_sets);
+                min_cover = Some(state.chosen_sets);
             }
             continue;
         }
-        let (largest_set_index, _set) = sets
+        let (largest_set_index, _set) = state
+            .sets
             .iter()
             .enumerate()
             .max_by_key(|(_index, set)| set.elements.count_ones())
             .unwrap();
-        let largest_set = sets.swap_remove(largest_set_index);
-        stack.push((
-            sets.clone(),
-            uncovered_elements.clone(),
-            clone_with_capacity(&chosen_sets, set_count),
-        ));
-        chosen_sets.push(largest_set.id);
-        assign_difference(&mut uncovered_elements, &largest_set.elements);
-        if uncovered_elements.not_any() {
-            if min_cover.is_none() || chosen_sets.len() < min_cover.as_ref().unwrap().len() {
-                min_cover = Some(chosen_sets);
+        let largest_set = state.sets.swap_remove(largest_set_index);
+        stack.push(state.clone());
+        state.chosen_sets.push(largest_set.id);
+        assign_difference(&mut state.uncovered_elements, &largest_set.elements);
+        if state.uncovered_elements.not_any() {
+            if min_cover.is_none() || state.chosen_sets.len() < min_cover.as_ref().unwrap().len() {
+                min_cover = Some(state.chosen_sets);
             }
             continue;
         }
-        if min_cover.is_some() && chosen_sets.len() + 1 >= min_cover.as_ref().unwrap().len() {
+        if min_cover.is_some() && state.chosen_sets.len() + 1 >= min_cover.as_ref().unwrap().len() {
             continue;
         }
-        for set in sets.iter_mut() {
+        for set in state.sets.iter_mut() {
             assign_difference(&mut set.elements, &largest_set.elements);
         }
-        sets.retain(|set| set.elements.any());
-        stack.push((sets, uncovered_elements, chosen_sets));
+        state.sets.retain(|set| set.elements.any());
+        stack.push(state);
     }
     min_cover
 }
@@ -201,12 +211,6 @@ fn assign_difference(set: &mut BitVec<usize>, other: &BitVec<usize>) {
     for (s, &o) in iter {
         *s &= !o;
     }
-}
-
-fn clone_with_capacity<T: Clone>(slice: &[T], capacity: usize) -> Vec<T> {
-    let mut clone = Vec::with_capacity(capacity);
-    clone.extend_from_slice(slice);
-    clone
 }
 
 fn read_testcase(name: &str) -> Result<(Vec<Set>, BitVec<usize>)> {
@@ -228,4 +232,16 @@ fn read_testcase(name: &str) -> Result<(Vec<Set>, BitVec<usize>)> {
         .collect::<Result<_, ParseIntError>>()?;
     assert_eq!(set_count, sets.len());
     Ok((sets, elements))
+}
+
+impl Clone for State {
+    fn clone(&self) -> Self {
+        let mut chosen_sets_clone = Vec::with_capacity(self.chosen_sets.capacity());
+        chosen_sets_clone.extend(&self.chosen_sets);
+        Self {
+            sets: self.sets.clone(),
+            uncovered_elements: self.uncovered_elements.clone(),
+            chosen_sets: chosen_sets_clone,
+        }
+    }
 }
