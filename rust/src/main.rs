@@ -8,7 +8,7 @@ use std::path::Path;
 use std::time::Instant;
 
 const TESTCASES_PATH: &str = "../testcases";
-const TESTCASE_COUNT: usize = 24;
+const TESTCASE_COUNT: usize = 25;
 const TESTCASES: [&str; TESTCASE_COUNT] = [
     "s-rg-8-10",
     "s-X-12-6",
@@ -34,7 +34,7 @@ const TESTCASES: [&str; TESTCASE_COUNT] = [
     "s-rg-733-100",
     "s-k-200-300",
     "s-k-100-175",
-    // "s-k-150-250",
+    "s-k-150-250",
 ];
 
 #[derive(Debug, Clone)]
