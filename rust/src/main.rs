@@ -107,6 +107,7 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
     };
     let mut stack = vec![initial_state];
     while let Some(mut state) = stack.pop() {
+        // Remove dominated sets
         let dominated_sets = &mut sets_vec;
         dominated_sets.clear();
         for (index, set) in state.sets.iter().enumerate() {
@@ -123,6 +124,8 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
         for &index in dominated_sets.iter().rev() {
             state.sets.swap_remove(index);
         }
+        // Find required sets: sets containing an element not contained in
+        // any other set
         let required_sets = &mut sets_vec;
         required_sets.clear();
         for element in state.uncovered_elements.iter_ones() {
@@ -138,30 +141,37 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
                 }
             }
             if containing_set_count == 0 {
+                // No set contains this uncovered element so prune this branch
                 continue;
             } else if containing_set_count == 1 {
                 required_sets.push(containing_index);
             }
         }
-        required_sets.sort_unstable();
-        required_sets.dedup();
-        if !required_sets.is_empty()
-            && min_cover.is_some()
-            && state.chosen_sets.len() + required_sets.len() >= min_cover.as_ref().unwrap().len()
-        {
-            continue;
-        }
-        for &index in required_sets.iter().rev() {
-            let required_set = state.sets.swap_remove(index);
-            state.chosen_sets.push(required_set.id);
-            assign_difference(&mut state.uncovered_elements, &required_set.elements);
-            for set in state.sets.iter_mut() {
-                assign_difference(&mut set.elements, &required_set.elements);
-            }
-        }
         if !required_sets.is_empty() {
+            required_sets.sort_unstable();
+            required_sets.dedup();
+            // If the number of required sets plus the number of chosen sets
+            // makes any potential cover larger than the best found so far
+            // then prune this branch
+            if min_cover.is_some()
+                && state.chosen_sets.len() + required_sets.len()
+                    >= min_cover.as_ref().unwrap().len()
+            {
+                continue;
+            }
+            // Choose the required sets and remove their elements from all other sets
+            for &index in required_sets.iter().rev() {
+                let required_set = state.sets.swap_remove(index);
+                state.chosen_sets.push(required_set.id);
+                assign_difference(&mut state.uncovered_elements, &required_set.elements);
+                for set in state.sets.iter_mut() {
+                    assign_difference(&mut set.elements, &required_set.elements);
+                }
+            }
             state.sets.retain(|set| set.elements.any());
         }
+        // If there are no more sets now that required sets have been chosen
+        // then check if this is a better cover and finish this branch
         if state.sets.is_empty() {
             if state.uncovered_elements.not_any()
                 && (min_cover.is_none()
@@ -171,6 +181,9 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             }
             continue;
         }
+        // Find the set with the most remaining elements
+        // and create two branches: one where this set is chosen
+        // and one where it is not chosen
         let (largest_set_index, _set) = state
             .sets
             .iter()
@@ -178,22 +191,29 @@ fn find_set_cover(sets: Vec<Set>, uncovered_elements: BitVec<usize>) -> Option<V
             .max_by_key(|(_index, set)| set.elements.count_ones())
             .unwrap();
         let largest_set = state.sets.swap_remove(largest_set_index);
+        // Branch without the largest set chosen
         stack.push(state.clone());
+        // Choose the largest set
         state.chosen_sets.push(largest_set.id);
         assign_difference(&mut state.uncovered_elements, &largest_set.elements);
+        // If this is now a cover compare it to the min cover and finish this branch
         if state.uncovered_elements.not_any() {
             if min_cover.is_none() || state.chosen_sets.len() < min_cover.as_ref().unwrap().len() {
                 min_cover = Some(state.chosen_sets);
             }
             continue;
         }
+        // If this is not a cover and cannot become a better cover than the min cover
+        // then prune this branch
         if min_cover.is_some() && state.chosen_sets.len() + 1 >= min_cover.as_ref().unwrap().len() {
             continue;
         }
+        // Remove elements in the chosen set from all other sets
         for set in state.sets.iter_mut() {
             assign_difference(&mut set.elements, &largest_set.elements);
         }
         state.sets.retain(|set| set.elements.any());
+        // Branch with the largest set chosen
         stack.push(state);
     }
     min_cover
