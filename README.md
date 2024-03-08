@@ -16,9 +16,10 @@ through four different programs, each in its own directory.
 ## Algorithm Overview
 
 The programs employ a backtracking algorithm to find an exact minimum set cover
-for a given set of sets. It iteratively selects different combinations of sets
-until the minimum set cover is identified. For each iteration the algorithm
-incorporates the following checks to optimize the process:
+for a given set of sets. The algorithm iteratively selects different
+combinations of sets until the minimum set cover is identified. For each
+iteration the algorithm incorporates the following checks to optimize the
+process:
 
 - **Subset Elimination:** If a set is a subset of another set, the subset is
   excluded from consideration. This eliminates redundant sets, as choosing a
