@@ -1,72 +1,78 @@
-Minimum Set Cover
-==========
+# Minimum Set Cover
 
-Requirements
-------------
-* gcc
-* make
-* A POSIX compliant operating system (because of the function used for
-timing the program)
+This repository offers solutions to the
+[set cover optimization problem](https://en.wikipedia.org/wiki/Set_cover_problem)
+through four different programs, each in its own directory.
 
-GCC and make are not necessary if building without using the makefile.
+## Programs
 
-Building
----------
-A makefile is included. The program can be built using the command `make`. The
-compiled program is called msc.
+1. **Python, C, and Rust:** These programs share a common backtracking
+   algorithm, with the Rust version being the most optimized.
 
-Running
---------
-After building the program, it can be run with the command
-`./msc test_filename` 
+2. **Z3:** This version utilizes the
+   [Z3 theorem prover](https://github.com/Z3Prover/z3) through the `z3-solver`
+   Python package.
 
-Project Structure
-------------------
-* The C-output/ directory includes the output of the program on each testcase
-that it was able to complete. The included outputs are the same outputs I
-submitted in my hard copy submission.
-* A much more concise prototype of the final program was written in Python. The
-Python prototype is included in the prototype/ directory.
-* The src/ directory contains the source code for the final C program.
-* The supplied testcases are included in the testcases/ directory. The largest
-testcases are in the testcases/long/ directory. Any custom testcases generated 
-by the python script are in the testcases/custom/ directory.
-* A Python script used for generating custom testcases is included as
-custom-testcase-generator.py.
-* A makefile is included for building the program. Compiler and linker flags
-are set in this file.
+## Algorithm Overview
 
-Testcase Run Times
---------------------
-Testcase s-k-150-250 is the only case this program does not complete in a
-reasonable amount of time. s-k-150-250, s-k-100-175 and s-k-200-300 are the only
-testcases that do not complete in under 60 seconds. Outputs can be seen in the
-C-output/ directory. These outputs are identical to what was included on my
-hardcopy submission.
+The programs employ a backtracking algorithm to find an exact minimum set cover
+for a given set of sets. It iteratively selects different combinations of sets
+until the minimum set cover is identified. For each iteration the algorithm
+incorporates the following checks to optimize the process:
 
-Algorithm
------------
-This program implements a backtracking algorithm for finding a minimum set
-cover of given sets. The program recursively chooses different combinations of
-sets until the minimum set cover has been found. The following checks are made
-in this order to reduce the number of set combinations that need to be
-calculated:
+- **Subset Elimination:** If a set is a subset of another set, the subset is
+  excluded from consideration. This eliminates redundant sets, as choosing a
+  subset covers fewer elements for the same cost.
 
-* If a set is a subset of another set, remove the subset from consideration.
-There is no reason to consider a set that gives the same elements as a larger set.
-Selecting a subset of another set covers fewer elements for the same cost in the
-set cover. When considering whether or not a set is a subset of another set we
-only consider the elements in each set that are still uncovered.
-* If an uncovered element is only found in a single set, we select that set as
-it is necessary in any valid set cover.
-* If neither of the above cases is true, we must consider selecting or not
-selecting a set. Because every set is either in the minimum cover or not this
-considers every possibility for any sets that we cannot eliminate with one of
-the two cases above.
-    * We always consider the set with the most uncovered elements remaining
-    because it is most likely to be in the minimum set cover and to cause the
-    above cases to be true for future sets.
-    * For the minimum set cover to be exact, we must also
-    consider the set cover if we do not choose this set. We will choose
-    whichever set cover is smaller out of the set cover containing this set and
-    the set cover not containing this set.
+- **Singleton Element:** If an uncovered element is unique to a single set, that
+  set is selected as it is necessary for any valid set cover.
+
+- **Set Selection:** If neither of the above conditions is met, the algorithm
+  considers selecting or omitting a set. It prioritizes sets with the most
+  uncovered elements, as they are more likely to be part of the minimum set
+  cover.
+
+The Rust program has an additional optimization:
+
+- **Upper Bound**: Maintain an upper bound on the minimum set cover size
+  encountered so far. If at any point the current partial solution exceeds this
+  bound, prune that branch of the search space
+
+## Runtime Comparison
+
+The table below presents a runtime comparison for the test cases across the C,
+Rust, and Z3 programs. All test cases were run on an M2 Macbook Air.
+
+| Test Case    | C         | Rust       | Z3        |
+| ------------ | --------- | ---------- | --------- |
+| s-rg-8-10    | 4.00 µs   | 3.21 µs    | 25.79 ms  |
+| s-X-12-6     | 4.00 µs   | 4.75 µs    | 777.96 µs |
+| s-k-20-30    | 28.00 µs  | 6.75 µs    | 2.22 ms   |
+| s-k-30-50    | 114.00 µs | 19.58 µs   | 1.41 ms   |
+| s-rg-31-15   | 36.00 µs  | 20.58 µs   | 675.92 µs |
+| s-rg-40-20   | 49.00 µs  | 19.71 µs   | 485.90 µs |
+| s-k-40-60    | 150.00 µs | 16.50 µs   | 1.71 ms   |
+| s-k-20-35    | 96.00 µs  | 32.25 µs   | 1.55 ms   |
+| s-rg-63-25   | 298.00 µs | 111.83 µs  | 995.87 µs |
+| s-k-30-55    | 490.00 µs | 115.75 µs  | 2.08 ms   |
+| s-rg-118-30  | 2.78 ms   | 246.71 µs  | 819.92 µs |
+| s-rg-109-35  | 919.00 µs | 252.96 µs  | 784.16 µs |
+| s-k-35-65    | 1.53 ms   | 310.58 µs  | 2.61 ms   |
+| s-rg-155-40  | 4.39 ms   | 1.01 ms    | 1.26 ms   |
+| s-rg-197-45  | 5.93 ms   | 1.43 ms    | 1.22 ms   |
+| s-rg-245-50  | 19.19 ms  | 4.17 ms    | 1.83 ms   |
+| s-k-40-80    | 55.83 ms  | 18.57 ms   | 4.84 ms   |
+| s-k-50-95    | 142.66 ms | 20.40 ms   | 44.18 ms  |
+| s-rg-413-75  | 248.37 ms | 36.10 ms   | 6.14 ms   |
+| s-k-150-225  | 574.56 ms | 125.76 ms  | 54.49 ms  |
+| s-k-50-100   | 1.73 s    | 400.80 ms  | 19.48 ms  |
+| s-rg-733-100 | 7.60 s    | 1.14 s     | 2.18 s    |
+| s-k-200-300  | 40.60 s   | 7.66 s     | 4.32 s    |
+| s-k-100-175  | 174.47 s  | 23.63 s    | 908.88 ms |
+| s-k-150-250  | inf       | 20838.12 s | 150.30 s  |
+| Total        | inf       | 20871.16 s | 157.89 s  |
+
+_Note: The "Total" row represents the cumulative runtime across all test cases._
+
+The C program is unable to solve the s-k-150-250 testcase in a reasonable amount
+of time.
