@@ -6,12 +6,12 @@ through four different programs, each in its own directory.
 
 ## Programs
 
-1. **Python, C, and Rust:** These programs share a common backtracking
-   algorithm, with the Rust version being the most optimized.
+- **Python, C, and Rust:** These programs share a common backtracking algorithm,
+  with the Rust version being the most optimized.
 
-2. **Z3:** This version utilizes the
-   [Z3 theorem prover](https://github.com/Z3Prover/z3) through the `z3-solver`
-   Python package.
+- **Z3:** This version utilizes the
+  [Z3 theorem prover](https://github.com/Z3Prover/z3) through the `z3-solver`
+  Python package.
 
 ## Algorithm Overview
 
