@@ -1,4 +1,4 @@
-# Minimum Set Cover
+# Set Cover Optimization
 
 This repository offers solutions to the
 [set cover optimization problem](https://en.wikipedia.org/wiki/Set_cover_problem)
